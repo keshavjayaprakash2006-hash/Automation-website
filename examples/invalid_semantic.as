@@ -1,0 +1,5 @@
+GAP -5
+PRESS UNKNOWN
+LOOP 0 {
+    PRESS TAB
+}

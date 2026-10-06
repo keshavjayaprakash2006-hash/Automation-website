@@ -1,0 +1,8 @@
+# AutoScript Login Automation Example
+OPEN "https://practicetestautomation.com/practice-test-login/"
+GAP 5
+PRESS TAB 9
+TYPE "Student"
+PRESS TAB
+TYPE "Password123"
+PRESS ENTER

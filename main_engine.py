@@ -1,43 +1,32 @@
-from tokeniser import tokenize_file
+"""
+AutoScript Compiler - Engine & Code Generator (Review-1 Backward Compatibility)
+Delegates compilation and execution code generation to the backend compiler pipeline.
+"""
+
+from backend.compiler import AutoScriptCompiler
 
 def execute(tokens):
-    i = 0
-    length = len(tokens)
+    # Backward compatibility signature: tokens parameter ignored, compiler uses sample_file.txt
+    pass
 
-    while i < length:
-        kind, value = tokens[i]
+def compile_and_print(filepath):
+    try:
+        with open(filepath, 'r') as file:
+            code = file.read()
+    except FileNotFoundError:
+        print(f"Error: Could not find '{filepath}'")
+        return
 
-        if kind == 'NEWLINE':
-            i += 1
-            continue
+    compiler = AutoScriptCompiler(code)
+    result = compiler.compile()
 
-        if kind == 'COMMAND':
-            if value == 'OPEN':
-                url = tokens[i+1][1]
-                print(f"webbrowser.open('{url}')")
-                i += 2
+    if result["success"]:
+        print("--- GENERATED PYTHON CODE ---")
+        print(result["generated_code"])
+    else:
+        print("--- COMPILER ERRORS ---")
+        for err in result["errors"]:
+            print(err["formatted"])
 
-            elif value == 'GAP':
-                duration = int(tokens[i+1][1])
-                print(f"time.sleep({duration})")
-                i += 2
-
-            elif value == 'TYPE':
-                text = tokens[i+1][1]
-                print(f"pyautogui.write('{text}')")
-                i += 2
-
-            elif value == 'PRESS':
-                key = tokens[i+1][1].lower()
-                count = 1
-                i += 2
-                if i < length and tokens[i][0] == 'NUMBER':
-                    count = int(tokens[i][1])
-                    i += 1
-                print(f"pyautogui.press('{key}', presses={count})")
-
-        else:
-            i += 1
-
-my_tokens = tokenize_file('sample_file.txt')
-execute(my_tokens)
+if __name__ == "__main__":
+    compile_and_print('sample_file.txt')
