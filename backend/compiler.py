@@ -28,8 +28,12 @@ class AutoScriptCompiler:
                 "codegen": "NOT_EXECUTED"
             },
             "tokens": [],
-            "parse_tree": {},
-            "ast": {},
+            "parse_tree": None,
+            "ast": None,
+            "semantic": {
+                "success": False,
+                "errors": []
+            },
             "symbol_table": [],
             "ir": [],
             "generated_code": "",
@@ -60,6 +64,10 @@ class AutoScriptCompiler:
             analyzer = SemanticAnalyzer(ast_root, source_code=self.source_code)
             symbol_table = analyzer.analyze()
             result["symbol_table"] = symbol_table.to_list()
+            result["semantic"] = {
+                "success": True,
+                "errors": []
+            }
             result["pipeline"]["semantic"] = "SUCCESS"
             result["pipeline"]["symbol_table"] = "SUCCESS"
 
@@ -83,18 +91,25 @@ class AutoScriptCompiler:
             phase_key = e.phase.lower()
             if phase_key in result["pipeline"]:
                 result["pipeline"][phase_key] = "ERROR"
-            result["errors"].append(e.to_dict())
+            err_dict = e.to_dict()
+            result["errors"].append(err_dict)
+            if phase_key == "semantic":
+                result["semantic"] = {
+                    "success": False,
+                    "errors": [err_dict]
+                }
             result["success"] = False
 
         except Exception as e:
-            result["errors"].append({
+            err_dict = {
                 "phase": "INTERNAL",
                 "message": f"Internal compiler error: {str(e)}",
                 "line": 1,
                 "column": 1,
                 "snippet": "",
                 "formatted": f"[INTERNAL ERROR]: {str(e)}"
-            })
+            }
+            result["errors"].append(err_dict)
             result["success"] = False
 
         return result

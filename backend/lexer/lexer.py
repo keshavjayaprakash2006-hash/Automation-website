@@ -32,6 +32,7 @@ class Lexer:
         self.i = 0
         self.line = 1
         self.column = 1
+        at_stmt_start = True
 
         while self.i < self.length:
             char = self.source[self.i]
@@ -51,6 +52,7 @@ class Lexer:
                 self.line += 1
                 self.column = 1
                 self.i += 1
+                at_stmt_start = True
                 continue
 
             # Comments: '#' or '//'
@@ -65,6 +67,7 @@ class Lexer:
                 self.tokens.append(Token(TokenType.EQUALS, '=', self.line, self.column))
                 self.i += 1
                 self.column += 1
+                at_stmt_start = False
                 continue
 
             # Left Brace '{'
@@ -72,6 +75,7 @@ class Lexer:
                 self.tokens.append(Token(TokenType.LBRACE, '{', self.line, self.column))
                 self.i += 1
                 self.column += 1
+                at_stmt_start = True
                 continue
 
             # Right Brace '}'
@@ -79,6 +83,7 @@ class Lexer:
                 self.tokens.append(Token(TokenType.RBRACE, '}', self.line, self.column))
                 self.i += 1
                 self.column += 1
+                at_stmt_start = True
                 continue
 
             # Strings: "..."
@@ -109,6 +114,7 @@ class Lexer:
 
                 val = "".join(string_chars)
                 self.tokens.append(Token(TokenType.STRING, val, start_line, start_col))
+                at_stmt_start = False
                 continue
 
             # Numbers: positive integers (or negative numbers if preceded by '-')
@@ -130,6 +136,7 @@ class Lexer:
                     self.tokens.append(Token(TokenType.NUMBER, val, start_line, start_col))
                 except ValueError:
                     self.error(f"Invalid numeric literal '{raw_val}'", start_line, start_col)
+                at_stmt_start = False
                 continue
 
             # Identifiers / Commands / Keys
@@ -146,13 +153,19 @@ class Lexer:
                 word = "".join(word_chars)
                 upper_word = word.upper()
 
-                if upper_word in COMMANDS:
-                    self.tokens.append(Token(TokenType.COMMAND, upper_word, start_line, start_col))
-                elif upper_word in KEYS:
-                    self.tokens.append(Token(TokenType.KEY, upper_word, start_line, start_col))
+                if at_stmt_start:
+                    if upper_word in COMMANDS:
+                        self.tokens.append(Token(TokenType.COMMAND, upper_word, start_line, start_col))
+                        at_stmt_start = False
+                    else:
+                        self.error(f"Unknown keyword '{word}'", start_line, start_col)
                 else:
-                    # Treat as variable / identifier
-                    self.tokens.append(Token(TokenType.IDENTIFIER, word, start_line, start_col))
+                    if upper_word in COMMANDS:
+                        self.tokens.append(Token(TokenType.COMMAND, upper_word, start_line, start_col))
+                    elif upper_word in KEYS:
+                        self.tokens.append(Token(TokenType.KEY, upper_word, start_line, start_col))
+                    else:
+                        self.tokens.append(Token(TokenType.IDENTIFIER, word, start_line, start_col))
                 continue
 
             # Invalid / unexpected character

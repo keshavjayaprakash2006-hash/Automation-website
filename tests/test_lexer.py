@@ -47,3 +47,12 @@ def test_lexer_unexpected_char():
         lexer.tokenize()
     assert exc_info.value.phase == "LEXICAL"
     assert "Unexpected character '@'" in exc_info.value.message
+
+def test_lexer_unknown_keyword():
+    code = "PRSS TAB"
+    lexer = Lexer(code)
+    with pytest.raises(CompilerError) as exc_info:
+        lexer.tokenize()
+    assert exc_info.value.phase == "LEXICAL"
+    assert "Unknown keyword 'PRSS'" in exc_info.value.message
+

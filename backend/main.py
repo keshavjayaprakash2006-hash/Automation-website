@@ -1,6 +1,6 @@
 """
 AutoScript Compiler - FastAPI Backend Application
-Exposes RESTful APIs for compilation, simulation, real execution, emergency stop, and sample code retrieval.
+Exposes RESTful APIs for compilation, simulation, demo execution, emergency stop, and health status.
 """
 
 from fastapi import FastAPI, HTTPException
@@ -13,6 +13,7 @@ from backend.executor.executor import Executor
 from backend.ir.ir_generator import IRGenerator
 from backend.parser.parser import Parser
 from backend.lexer.lexer import Lexer
+from backend.semantic.analyzer import SemanticAnalyzer
 
 app = FastAPI(
     title="AutoScript Compiler API",
@@ -21,23 +22,32 @@ app = FastAPI(
 )
 
 # Enable CORS for frontend integration
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "*"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
 class CompileRequest(BaseModel):
     source: str
 
-
-EXAMPLES: Dict[str, Dict[str, str]] = {
-    "login.as": {
-        "title": "Login Automation",
-        "description": "Automates website opening, tab navigation, username/password typing, and form submission.",
+DEMOS: Dict[str, Dict[str, Any]] = {
+    "login": {
+        "id": "login",
+        "title": "Login Form Automation",
+        "description": "Opens practice login page, waits 5s, tabs to fields, types credentials, and submits form.",
         "code": """# AutoScript Login Automation Example
 OPEN "https://practicetestautomation.com/practice-test-login/"
 GAP 5
@@ -47,10 +57,24 @@ PRESS TAB
 TYPE "Password123"
 PRESS ENTER"""
     },
-    "loop_example.as": {
+    "form": {
+        "id": "form",
+        "title": "Form Navigation",
+        "description": "Navigates keyboard focus and enters inputs across form controls using GAP and PRESS commands.",
+        "code": """# AutoScript Form Navigation Example
+OPEN "https://practicetestautomation.com/practice-test-login/"
+GAP 3
+PRESS TAB 9
+TYPE "Student"
+PRESS TAB
+TYPE "Password123"
+"""
+    },
+    "loop": {
+        "id": "loop",
         "title": "Loop Automation",
-        "description": "Demonstrates repetitive actions using the LOOP construct.",
-        "code": """// AutoScript Loop Example
+        "description": "Demonstrates repetitive navigation operations using the AutoScript LOOP construct.",
+        "code": """# AutoScript Loop Automation Example
 OPEN "https://example.com"
 GAP 2
 
@@ -58,16 +82,19 @@ LOOP 3 {
     PRESS TAB
     GAP 1
 }"""
-    },
-    "nested_loop.as": {
-        "title": "Nested Loop",
-        "description": "Demonstrates nested block parsing and execution.",
-        "code": """# AutoScript Nested Loop Example
-LOOP 2 {
-    LOOP 3 {
-        PRESS TAB
     }
-}"""
+}
+
+EXAMPLES: Dict[str, Dict[str, str]] = {
+    "login.as": {
+        "title": "Login Automation",
+        "description": DEMOS["login"]["description"],
+        "code": DEMOS["login"]["code"]
+    },
+    "loop_example.as": {
+        "title": "Loop Automation",
+        "description": DEMOS["loop"]["description"],
+        "code": DEMOS["loop"]["code"]
     },
     "variables.as": {
         "title": "Variables Extension",
@@ -80,39 +107,8 @@ OPEN "https://example.com"
 GAP WAIT_TIME
 TYPE USER_NAME
 PRESS ENTER"""
-    },
-    "comments.as": {
-        "title": "Comments Example",
-        "description": "Shows line comments with '#' and '//'.",
-        "code": """# Open website
-OPEN "https://example.com"
-
-// Wait for page load
-GAP 3
-
-# Press tab twice
-PRESS TAB 2"""
-    },
-    "invalid_syntax.as": {
-        "title": "Invalid Syntax (Error Demo)",
-        "description": "Demonstrates syntax error detection and caret diagnostic output.",
-        "code": """OPEN
-GAP
-PRESS
-LOOP 3 {
-    PRESS TAB"""
-    },
-    "invalid_semantic.as": {
-        "title": "Invalid Semantic (Error Demo)",
-        "description": "Demonstrates semantic error detection for invalid arguments and unsupported keys.",
-        "code": """GAP -5
-PRESS UNKNOWN
-LOOP 0 {
-    PRESS TAB
-}"""
     }
 }
-
 
 @app.get("/")
 def read_root():
@@ -122,12 +118,17 @@ def read_root():
         "version": "1.0.0"
     }
 
+@app.get("/api/health")
+def get_health():
+    return {
+        "status": "ok",
+        "service": "AutoScript Compiler"
+    }
 
 @app.post("/api/compile")
 def compile_code(req: CompileRequest):
     compiler = AutoScriptCompiler(req.source)
     return compiler.compile()
-
 
 @app.post("/api/simulate")
 def simulate_code(req: CompileRequest):
@@ -141,12 +142,13 @@ def simulate_code(req: CompileRequest):
             "logs": ["Simulation aborted due to compilation errors."]
         }
 
-    # Reconstruct IR for simulation
     lexer = Lexer(req.source)
     tokens = lexer.tokenize()
     parser = Parser(tokens, req.source)
     ast_root, _ = parser.parse()
-    ir_gen = IRGenerator(ast_root)
+    analyzer = SemanticAnalyzer(ast_root, req.source)
+    symbol_table = analyzer.analyze()
+    ir_gen = IRGenerator(ast_root, symbol_table=symbol_table)
     ir_instructions = ir_gen.generate()
 
     trace = Executor.simulate(ir_instructions)
@@ -156,40 +158,53 @@ def simulate_code(req: CompileRequest):
         "logs": trace
     }
 
-
-@app.post("/api/run")
-def run_code(req: CompileRequest):
-    compiler = AutoScriptCompiler(req.source)
-    comp_result = compiler.compile()
-
-    if not comp_result["success"]:
-        return {
-            "success": False,
-            "errors": comp_result["errors"],
-            "message": "Execution aborted due to compilation errors.",
-            "logs": []
-        }
-
-    # Security: Only run python code generated by compiler
-    generated_python = comp_result["generated_code"]
-    exec_result = Executor.run_real(generated_python)
-    return {
-        "success": exec_result["success"],
-        "message": exec_result["message"],
-        "generated_code": generated_python,
-        "logs": exec_result["logs"]
-    }
-
-
-@app.post("/api/stop")
-def stop_code():
-    return Executor.stop()
-
+@app.get("/api/demos")
+def get_demos():
+    return DEMOS
 
 @app.get("/api/examples")
 def get_examples():
     return EXAMPLES
 
+@app.post("/api/demo/{demo_id}/run")
+def run_demo(demo_id: str):
+    if demo_id not in DEMOS:
+        raise HTTPException(status_code=404, detail=f"Demo '{demo_id}' not found. Available demos: {list(DEMOS.keys())}")
+
+    demo_code = DEMOS[demo_id]["code"]
+    compiler = AutoScriptCompiler(demo_code)
+    comp_result = compiler.compile()
+
+    if not comp_result["success"]:
+        return {
+            "success": False,
+            "demo_id": demo_id,
+            "errors": comp_result["errors"],
+            "message": "Demo execution aborted due to compiler errors.",
+            "logs": []
+        }
+
+    lexer = Lexer(demo_code)
+    tokens = lexer.tokenize()
+    parser = Parser(tokens, demo_code)
+    ast_root, _ = parser.parse()
+    analyzer = SemanticAnalyzer(ast_root, demo_code)
+    symbol_table = analyzer.analyze()
+    ir_gen = IRGenerator(ast_root, symbol_table=symbol_table)
+    ir_instructions = ir_gen.generate()
+
+    exec_result = Executor.run_real_ir(ir_instructions)
+    return {
+        "success": exec_result["success"],
+        "demo_id": demo_id,
+        "message": exec_result["message"],
+        "generated_code": comp_result["generated_code"],
+        "logs": exec_result["logs"]
+    }
+
+@app.post("/api/stop")
+def stop_code():
+    return Executor.stop()
 
 if __name__ == "__main__":
     import uvicorn

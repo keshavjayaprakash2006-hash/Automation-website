@@ -1,6 +1,6 @@
 """
 AutoScript Compiler - Execution Engine
-Supports Mode 1 (Simulation trace) and Mode 2 (Real PyAutoGUI execution with safety controls).
+Supports Mode 1 (Simulation trace) and Mode 2 (Real PyAutoGUI execution operating directly on validated IR instructions).
 """
 
 import time
@@ -89,10 +89,10 @@ class Executor:
             i += 1
 
     @classmethod
-    def run_real(cls, python_code: str) -> Dict[str, Any]:
+    def run_real_ir(cls, ir_instructions: List[IRInstruction]) -> Dict[str, Any]:
         """
-        Runs Mode 2: Real PyAutoGUI automation execution safely.
-        Returns execution logs.
+        Runs Mode 2: Real PyAutoGUI automation execution safely directly from validated IR instructions.
+        Avoids direct string exec() of arbitrary user code.
         """
         if cls._active_thread and cls._active_thread.is_alive():
             return {
@@ -102,24 +102,14 @@ class Executor:
             }
 
         cls._stop_flag = False
-        logs: List[str] = ["=== REAL AUTOMATION EXECUTION STARTED ==="]
+        logs: List[str] = ["=== REAL AUTOMATION EXECUTION STARTED (FROM VALIDATED IR) ==="]
 
-        # Execute code in a separate thread so API does not hang
         def target():
-            old_stdout = sys.stdout
-            string_io = io.StringIO()
-            sys.stdout = string_io
             try:
-                # Restrict globals to standard Python + pyautogui/webbrowser/time
-                exec_globals = {
-                    "__builtins__": __builtins__,
-                }
-                exec(python_code, exec_globals)
-                logs.append("Real execution finished cleanly.")
+                cls._execute_ir_list(ir_instructions, logs)
+                logs.append("=== REAL AUTOMATION COMPLETED CLEANLY ===")
             except Exception as e:
                 logs.append(f"Real execution error: {str(e)}")
-            finally:
-                sys.stdout = old_stdout
 
         thread = threading.Thread(target=target, daemon=True)
         cls._active_thread = thread
@@ -131,6 +121,69 @@ class Executor:
             "message": "Automation execution completed.",
             "logs": logs
         }
+
+    @classmethod
+    def _execute_ir_list(cls, instructions: List[IRInstruction], logs: List[str]):
+        import webbrowser
+        import pyautogui
+        pyautogui.FAILSAFE = True
+
+        i = 0
+        n = len(instructions)
+        while i < n:
+            if cls._stop_flag:
+                logs.append("[EMERGENCY STOP] Execution halted by user request.")
+                break
+
+            instr = instructions[i]
+            op = instr.op
+            args = instr.args
+
+            if op == "OPEN_URL":
+                url = str(args[0])
+                logs.append(f"Executing: OPEN URL '{url}'")
+                webbrowser.open(url)
+
+            elif op == "WAIT":
+                dur = float(args[0])
+                logs.append(f"Executing: WAIT {dur}s")
+                time.sleep(dur)
+
+            elif op == "TYPE_TEXT":
+                txt = str(args[0])
+                logs.append(f"Executing: TYPE '{txt}'")
+                pyautogui.write(txt, interval=0.05)
+
+            elif op == "PRESS_KEY":
+                key = str(args[0]).lower()
+                cnt = int(args[1]) if len(args) > 1 else 1
+                logs.append(f"Executing: PRESS KEY {key.upper()} (x{cnt})")
+                pyautogui.press(key, presses=cnt, interval=0.05)
+
+            elif op == "LOOP_START":
+                loop_count = int(args[0])
+                body_instructions = []
+                depth = 1
+                j = i + 1
+                while j < n:
+                    if instructions[j].op == "LOOP_START":
+                        depth += 1
+                    elif instructions[j].op == "LOOP_END":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    body_instructions.append(instructions[j])
+                    j += 1
+
+                for iter_num in range(1, loop_count + 1):
+                    if cls._stop_flag:
+                        break
+                    logs.append(f"Loop Iteration {iter_num}/{loop_count}")
+                    cls._execute_ir_list(body_instructions, logs)
+
+                i = j  # Skip to LOOP_END
+
+            i += 1
 
     @classmethod
     def stop(cls) -> Dict[str, Any]:
