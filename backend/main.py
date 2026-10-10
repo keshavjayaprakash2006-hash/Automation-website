@@ -52,9 +52,11 @@ DEMOS: Dict[str, Dict[str, Any]] = {
 OPEN "https://practicetestautomation.com/practice-test-login/"
 GAP 5
 PRESS TAB 9
-TYPE "Student"
+TYPE "student"
 PRESS TAB
 TYPE "Password123"
+GAP 1
+PRESS TAB
 PRESS ENTER"""
     },
     "form": {
@@ -65,9 +67,12 @@ PRESS ENTER"""
 OPEN "https://practicetestautomation.com/practice-test-login/"
 GAP 3
 PRESS TAB 9
-TYPE "Student"
+TYPE "student"
 PRESS TAB
 TYPE "Password123"
+GAP 1
+PRESS TAB
+PRESS ENTER
 """
     },
     "loop": {
@@ -101,7 +106,7 @@ EXAMPLES: Dict[str, Dict[str, str]] = {
         "description": "Demonstrates SET variable declarations and symbol table tracking.",
         "code": """# Variable Declaration & Use
 SET WAIT_TIME = 3
-SET USER_NAME = "Student"
+SET USER_NAME = "student"
 
 OPEN "https://example.com"
 GAP WAIT_TIME

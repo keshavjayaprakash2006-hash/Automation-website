@@ -1,9 +1,11 @@
 OPEN "https://practicetestautomation.com/practice-test-login/"
 GAP 5
 PRESS TAB 9
-TYPE "Student"
+TYPE "student"
 PRESS TAB
 TYPE "Password123"
+GAP 1
+PRESS TAB
 PRESS ENTER
 
 

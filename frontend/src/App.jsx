@@ -13,9 +13,11 @@ const SAMPLE_PROGRAMS = {
 OPEN "https://practicetestautomation.com/practice-test-login/"
 GAP 5
 PRESS TAB 9
-TYPE "Student"
+TYPE "student"
 PRESS TAB
 TYPE "Password123"
+GAP 1
+PRESS TAB
 PRESS ENTER`
   },
   loop: {
@@ -33,7 +35,7 @@ LOOP 3 {
     name: 'Variables Extension',
     code: `# AutoScript Variable Declaration & Usage
 SET WAIT_TIME = 3
-SET USER_NAME = "Student"
+SET USER_NAME = "student"
 
 OPEN "https://example.com"
 GAP WAIT_TIME
